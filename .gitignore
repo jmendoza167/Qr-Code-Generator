@@ -1,0 +1,23 @@
+# Dependencies
+node_modules/
+
+# npm
+npm-debug.log*
+package-lock.json.bak
+*.tgz
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Generated output from trying the CLI
+*.png
+*.svg
+!docs/**/*.png
+!docs/**/*.svg
+
+# Test scratch
+coverage/

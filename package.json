@@ -1,0 +1,58 @@
+{
+  "name": "@jmendoza167/qrgen",
+  "version": "0.1.0",
+  "description": "QR code generator with the encoder written from scratch (ISO/IEC 18004). Terminal, SVG and PNG output. Zero runtime dependencies.",
+  "type": "module",
+  "license": "MIT",
+  "author": "jmendoza167",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jmendoza167/Qr-Code-Generator.git"
+  },
+  "homepage": "https://github.com/jmendoza167/Qr-Code-Generator#readme",
+  "bugs": {
+    "url": "https://github.com/jmendoza167/Qr-Code-Generator/issues"
+  },
+  "keywords": [
+    "qr",
+    "qrcode",
+    "qr-code",
+    "generator",
+    "cli",
+    "terminal",
+    "svg",
+    "png",
+    "reed-solomon"
+  ],
+  "bin": {
+    "qrgen": "bin/qrgen.js"
+  },
+  "main": "./src/index.js",
+  "exports": {
+    ".": "./src/index.js",
+    "./core": "./src/core/qr.js",
+    "./render/terminal": "./src/render/terminal.js",
+    "./render/svg": "./src/render/svg.js",
+    "./render/png": "./src/render/png.js"
+  },
+  "files": [
+    "bin",
+    "src",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "sideEffects": false,
+  "scripts": {
+    "test": "node --test \"test/**/*.test.js\""
+  },
+  "devDependencies": {
+    "jsqr": "^1.4.0",
+    "pngjs": "^7.0.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}
