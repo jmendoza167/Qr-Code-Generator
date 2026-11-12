@@ -46,7 +46,8 @@
   },
   "sideEffects": false,
   "scripts": {
-    "test": "node --test \"test/**/*.test.js\""
+    "test": "node --test \"test/**/*.test.js\"",
+    "demo": "vhs docs/demo.tape"
   },
   "devDependencies": {
     "jsqr": "^1.4.0",

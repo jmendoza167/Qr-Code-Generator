@@ -2,6 +2,8 @@
 
 [![Tests](https://github.com/jmendoza167/Qr-Code-Generator/actions/workflows/test.yml/badge.svg)](https://github.com/jmendoza167/Qr-Code-Generator/actions/workflows/test.yml)
 
+![Terminal demo: qrgen printing a QR code, showing --info, saving a styled PNG and creating a Wi-Fi code with a hidden password prompt](docs/demo.gif)
+
 A QR code generator written in JavaScript, with the QR encoder implemented
 **from scratch** following ISO/IEC 18004. No QR libraries, no runtime
 dependencies. It is a terminal tool today, and the same engine is built to
@@ -378,6 +380,14 @@ npm test
 The same command runs in CI (`.github/workflows/test.yml`) on Ubuntu,
 Windows and macOS with Node 22 and 24; the badge at the top of this file
 shows the latest result.
+
+The demo GIF at the top is recorded with [VHS](https://github.com/charmbracelet/vhs)
+from `docs/demo.tape`. With `vhs`, `ttyd` and `ffmpeg` installed and `qrgen`
+linked globally, regenerate it with:
+
+```powershell
+npm run demo
+```
 
 The suite checks GF(256) and Reed-Solomon against published values (the
 standard's version 1-M `01234567` example among them), every data codeword
