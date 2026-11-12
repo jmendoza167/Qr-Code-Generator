@@ -9,3 +9,9 @@ export { encode, DataTooLongError, detectMode, getCapacity, MIN_VERSION, MAX_VER
 export { renderTerminal } from './render/terminal.js';
 export { renderSvg } from './render/svg.js';
 export { renderPng } from './render/png.js';
+export { buildWifiPayload } from './presets/wifi.js';
+export { buildVCard } from './presets/vcard.js';
+export { normalizeStyle, checkContrast } from './render/style.js';
+export { planLogo, encodeWithLogo } from './render/logo.js';
+export { sanitizeSvg } from './render/svg-sanitize.js';
+export { decodePng, PngDecodeError } from './render/png-decode.js';

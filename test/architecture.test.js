@@ -22,9 +22,14 @@ function listJsFiles(dir) {
 
 const BROWSER_SAFE = [
   ...listJsFiles(join(ROOT, 'src', 'core')),
+  ...listJsFiles(join(ROOT, 'src', 'presets')),
   join(ROOT, 'src', 'render', 'svg.js'),
   join(ROOT, 'src', 'render', 'terminal.js'),
   join(ROOT, 'src', 'render', 'color.js'),
+  join(ROOT, 'src', 'render', 'style.js'),
+  join(ROOT, 'src', 'render', 'logo.js'),
+  join(ROOT, 'src', 'render', 'base64.js'),
+  join(ROOT, 'src', 'render', 'svg-sanitize.js'),
 ];
 
 // Anything that only exists in Node: node: imports, CommonJS require, the
