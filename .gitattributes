@@ -1,0 +1,15 @@
+# Normalise line endings: text files are stored with LF and checked out
+# with LF on every platform, so tests see the same bytes on Windows, macOS
+# and Linux.
+* text=auto eol=lf
+
+# Files that must stay byte-exact: no line-ending conversion at all.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.webp binary
+*.woff binary
+*.woff2 binary
+*.svg -text

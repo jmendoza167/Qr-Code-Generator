@@ -1,5 +1,7 @@
 # qrgen
 
+[![Tests](https://github.com/jmendoza167/Qr-Code-Generator/actions/workflows/test.yml/badge.svg)](https://github.com/jmendoza167/Qr-Code-Generator/actions/workflows/test.yml)
+
 A QR code generator written in JavaScript, with the QR encoder implemented
 **from scratch** following ISO/IEC 18004. No QR libraries, no runtime
 dependencies. It is a terminal tool today, and the same engine is built to
@@ -51,9 +53,11 @@ Every image, with the exact command that produced it, is in the
 
 ## Requirements
 
-- Node.js 20 or newer (developed on Node 24).
+- Node.js 22 or newer (developed on Node 24).
 - No runtime dependencies. Dev dependencies (`jsqr`, `pngjs`) are only used
   by the tests.
+- Works on Windows, macOS and Linux: the test suite runs on all three (with
+  Node 22 and 24) in GitHub Actions on every push and pull request.
 
 ## Install locally
 
@@ -370,6 +374,10 @@ test/                 node --test suites, including jsQR round trips
 ```powershell
 npm test
 ```
+
+The same command runs in CI (`.github/workflows/test.yml`) on Ubuntu,
+Windows and macOS with Node 22 and 24; the badge at the top of this file
+shows the latest result.
 
 The suite checks GF(256) and Reed-Solomon against published values (the
 standard's version 1-M `01234567` example among them), every data codeword
