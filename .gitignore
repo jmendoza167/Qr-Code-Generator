@@ -19,5 +19,5 @@ desktop.ini
 !docs/**/*.png
 !docs/**/*.svg
 
-# Test scratch
+# Coverage output (npm run coverage)
 coverage/

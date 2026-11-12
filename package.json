@@ -47,9 +47,11 @@
   "sideEffects": false,
   "scripts": {
     "test": "node --test \"test/**/*.test.js\"",
+    "coverage": "c8 --reporter=text-summary --reporter=html --reports-dir=coverage npm test",
     "demo": "vhs docs/demo.tape"
   },
   "devDependencies": {
+    "c8": "^12.0.0",
     "jsqr": "^1.4.0",
     "pngjs": "^7.0.0"
   },
