@@ -48,7 +48,9 @@ export function renderSvg(matrix, options = {}) {
 
 /**
  * Markup for the logo: an optional background rect over the cleared area,
- * then the image (PNG bytes as a data URI, or sanitized inline SVG).
+ * then the image as a base64 data URI <image>. That goes for SVG logos
+ * too: they are sanitized and embedded as an image, never inlined, so
+ * nothing in a logo can run script in the document we produce.
  * `box` and `area` come from planLogo() and are in module units.
  */
 function logoMarkup(logo, margin) {

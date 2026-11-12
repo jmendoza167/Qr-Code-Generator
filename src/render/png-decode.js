@@ -7,6 +7,11 @@
  * decoder how the row was predicted from its neighbours (none, left byte,
  * byte above, their average, or the Paeth predictor). Undoing those filters
  * is the only real work here; the rest is unpacking channels to RGBA.
+ *
+ * The file is untrusted input. A few hundred kilobytes of deflate data can
+ * expand to gigabytes (a "decompression bomb"), so the declared size is
+ * checked against a cap *before* anything is inflated, and inflating stops
+ * at the number of bytes that size calls for.
  */
 import { inflateSync } from 'node:zlib';
 import { crc32 } from './png.js';
@@ -17,6 +22,10 @@ export class PngDecodeError extends Error {
     this.name = 'PngDecodeError';
   }
 }
+
+/** Largest logo accepted: 4096 x 4096, 16 megapixels in total. */
+export const MAX_PNG_DIMENSION = 4096;
+export const MAX_PNG_PIXELS = MAX_PNG_DIMENSION * MAX_PNG_DIMENSION;
 
 const SIGNATURE = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
 const CHANNELS = { 0: 1, 2: 3, 3: 1, 4: 2, 6: 4 };
@@ -50,6 +59,8 @@ export function decodePng(bytes) {
     }
     const data = buf.subarray(start, end);
     if (type === 'IHDR') {
+      if (header) throw new PngDecodeError('Corrupt PNG file (more than one IHDR chunk)');
+      if (data.length !== 13) throw new PngDecodeError('Corrupt PNG file (bad IHDR chunk)');
       header = {
         width: data.readUInt32BE(0),
         height: data.readUInt32BE(4),
@@ -66,6 +77,15 @@ export function decodePng(bytes) {
   if (!header) throw new PngDecodeError('The logo is not a PNG file (missing IHDR)');
 
   const { width, height, bitDepth, colorType, interlace } = header;
+  // Size checks come first, before any memory is allocated for the pixels.
+  if (width === 0 || height === 0) {
+    throw new PngDecodeError(`The logo PNG has no pixels (its size is ${width}x${height})`);
+  }
+  if (width > MAX_PNG_DIMENSION || height > MAX_PNG_DIMENSION || width * height > MAX_PNG_PIXELS) {
+    throw new PngDecodeError(
+      `The logo PNG is too large (${width}x${height}): the limit is ${MAX_PNG_DIMENSION}x${MAX_PNG_DIMENSION} pixels. Resize it first`,
+    );
+  }
   if (interlace !== 0) throw new PngDecodeError('Interlaced PNGs are not supported: re-save the logo without interlacing (Adam7)');
   if (bitDepth === 16) throw new PngDecodeError('16-bit PNGs are not supported: re-save the logo as 8-bit');
   const channels = CHANNELS[colorType];
@@ -79,13 +99,20 @@ export function decodePng(bytes) {
   const bitsPerPixel = channels * bitDepth;
   const bpp = Math.max(1, Math.ceil(bitsPerPixel / 8)); // bytes per pixel, as the filters see it
   const stride = Math.ceil((width * bitsPerPixel) / 8);
+  // Exactly what the header promises: one filter byte plus `stride` bytes per
+  // row. zlib refuses to produce more, so a bomb is cut off here instead of
+  // being inflated in full.
+  const expected = height * (stride + 1);
   let raw;
   try {
-    raw = inflateSync(Buffer.concat(idat));
+    raw = inflateSync(Buffer.concat(idat), { maxOutputLength: expected });
   } catch (err) {
+    if (err.code === 'ERR_BUFFER_TOO_LARGE') {
+      throw new PngDecodeError(`Corrupt PNG file (the image data is larger than its declared size of ${width}x${height})`);
+    }
     throw new PngDecodeError(`Corrupt PNG file (${err.message})`);
   }
-  if (raw.length < height * (stride + 1)) throw new PngDecodeError('Truncated PNG image data');
+  if (raw.length < expected) throw new PngDecodeError('Truncated PNG image data');
 
   const pixels = unfilter(raw, width, height, stride, bpp);
   return { width, height, data: toRgba(pixels, header, stride, palette, transparency) };

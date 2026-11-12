@@ -63,3 +63,58 @@ describe('buildWifiPayload', () => {
     assert.throws(() => buildWifiPayload({ ssid: 'Open', security: 'nopass', password: 'x' }), /nopass/);
   });
 });
+
+describe('buildWifiPayload: field injection through control characters', () => {
+  const CONTROLS = ['\r', '\n', '\r\n', '\t', '\0', '\x1b', '\x7f', '\x85', '\x9b', '\u2028', '\u2029', '\v', '\f', '\b'];
+
+  test('CR, LF and every other control character in the SSID are rejected', () => {
+    for (const ch of CONTROLS) {
+      for (const ssid of [`Home${ch}`, `${ch}Home`, `Ho${ch}me`]) {
+        assert.throws(() => buildWifiPayload({ ssid, password: 'secret' }), (err) => err instanceof RangeError && /ssid.*control character/i.test(err.message), JSON.stringify(ssid));
+        assert.throws(() => buildWifiPayload({ ssid, security: 'nopass' }), /control character/, JSON.stringify(ssid));
+      }
+    }
+  });
+
+  test('CR, LF and every other control character in the password are rejected', () => {
+    for (const ch of CONTROLS) {
+      for (const password of [`secret${ch}`, `${ch}secret`, `sec${ch}ret`]) {
+        for (const security of ['WPA', 'WEP']) {
+          assert.throws(
+            () => buildWifiPayload({ ssid: 'Home', password, security }),
+            (err) => err instanceof RangeError && /password.*control character/i.test(err.message),
+            JSON.stringify(password),
+          );
+        }
+      }
+    }
+  });
+
+  test('an injected second network or field never reaches the payload', () => {
+    const attacks = [
+      { ssid: 'Guest;;\nWIFI:T:nopass;S:EvilTwin;;', password: 'secret' },
+      { ssid: 'Guest\r\nWIFI:T:WPA;S:EvilTwin;P:attacker;;', password: 'secret' },
+      { ssid: 'Home', password: 'secret;;\nhttps://evil.example/' },
+      { ssid: 'Home', password: 'secret\r\nH:true' },
+      { ssid: 'Home\x1b[2J', password: 'secret' },
+    ];
+    for (const fields of attacks) {
+      assert.throws(() => buildWifiPayload(fields), /control character/, JSON.stringify(fields));
+    }
+  });
+
+  test('the error names the field and the code point but does not echo the value', () => {
+    assert.throws(
+      () => buildWifiPayload({ ssid: 'Home', password: 'hunter2\nextra' }),
+      (err) => /password/.test(err.message) && /U\+000A at position 8/.test(err.message) && !/hunter2|extra|\n/.test(err.message),
+    );
+    assert.throws(() => buildWifiPayload({ ssid: 'a\x1b[31mb', security: 'nopass' }), (err) => /U\+001B at position 2/.test(err.message) && !err.message.includes('\x1b'));
+  });
+
+  test('printable input, including the format characters and non-ASCII text, still works', () => {
+    assert.equal(
+      buildWifiPayload({ ssid: 'Café ; , : " \\ 日本語 🎉', password: 'p@ss word;:,"\\' }),
+      'WIFI:T:WPA;S:Café \\; \\, \\: \\" \\\\ 日本語 🎉;P:p@ss word\\;\\:\\,\\"\\\\;;',
+    );
+  });
+});

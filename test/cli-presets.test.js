@@ -148,3 +148,27 @@ describe('literal text that looks like a subcommand', () => {
     assert.match(stdout, /--\s+wifi/);
   });
 });
+
+describe('qrgen wifi: control characters are refused', () => {
+  test('a line break in --ssid or --pass is a usage error and nothing is written', () => {
+    for (const args of [
+      ['wifi', '--ssid', 'Guest;;\nWIFI:T:nopass;S:EvilTwin;;', '--pass', 'secret'],
+      ['wifi', '--ssid', 'Home', '--pass', 'secret\r\nH:true'],
+      ['wifi', '--ssid', 'Ho\tme', '--security', 'nopass'],
+    ]) {
+      const file = tmp('png');
+      const { status, stdout, stderr } = qrgen([...args, '-o', file]);
+      assert.equal(status, 2, stderr);
+      assert.match(stderr, /^qrgen: The Wi-Fi (ssid|password) contains a control character/);
+      assert.doesNotMatch(stderr, /EvilTwin|secret/);
+      assert.equal(stdout, '');
+      assert.throws(() => readFileSync(file), /ENOENT/);
+    }
+  });
+
+  test('a password piped through stdin with more than one line is refused', () => {
+    const { status, stderr } = qrgen(['wifi', '--ssid', 'Home'], 'secret\nWIFI:T:nopass;S:EvilTwin;;\n');
+    assert.equal(status, 2);
+    assert.match(stderr, /Wi-Fi password contains a control character \(U\+000A/);
+  });
+});

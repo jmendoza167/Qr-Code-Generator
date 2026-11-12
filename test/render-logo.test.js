@@ -130,11 +130,21 @@ describe('SVG output with a logo', () => {
     assert.ok(svg.lastIndexOf('<path') < svg.indexOf('<image'));
   });
 
-  test('SVG logo is sanitized and inlined', () => {
+  // Was 'SVG logo is sanitized and inlined': the logo is still sanitized but
+  // is now embedded as a data URI <image>, the same way as a PNG logo.
+  test('SVG logo is sanitized and embedded as a base64 data URI <image>, never inlined', () => {
     const logo = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10" onload="x()"><script>x()</script><circle cx="5" cy="5" r="5" fill="#00f"/></svg>';
     const svg = renderSvg(plan.matrix, { logo: { svg: logo, box: plan.box, area: plan.area } });
-    assert.match(svg, /<svg x="[\d.]+" y="[\d.]+" width="[\d.]+" height="[\d.]+" viewBox="0 0 10 10" preserveAspectRatio="xMidYMid meet"><circle/);
-    assert.doesNotMatch(svg, /<script|onload/);
+    const m = new RegExp(
+      `<image href="data:image/svg\\+xml;base64,([A-Za-z0-9+/]+={0,2})" x="${plan.box.x + 4}" y="${plan.box.y + 4}" ` +
+        `width="${plan.box.w}" height="${plan.box.h}" preserveAspectRatio="xMidYMid meet"/>`,
+    ).exec(svg);
+    assert.ok(m, 'the logo is an <image> with a base64 SVG data URI at the box');
+    assert.equal(svg.match(/<svg\b/g).length, 1, 'no nested <svg> in the output');
+    assert.doesNotMatch(svg, /<script|onload|<circle/);
+    assert.ok(svg.lastIndexOf('<path') < svg.indexOf('<image'));
+    const embedded = Buffer.from(m[1], 'base64').toString('utf8');
+    assert.match(embedded, /^<svg xmlns="[^"]+" xmlns:xlink="[^"]+" width="10" height="10" viewBox="0 0 10 10"><circle cx="5" cy="5" r="5" fill="#00f"\/><\/svg>$/);
   });
 
   test('logo background rect covers the cleared area when requested', () => {

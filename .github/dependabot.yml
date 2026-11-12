@@ -1,0 +1,15 @@
+# Weekly dependency update pull requests.
+version: 2
+updates:
+  # Dev dependencies in package.json / package-lock.json.
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+
+  # Actions used in .github/workflows (pinned by commit SHA; Dependabot
+  # updates the SHA and the version comment together).
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly

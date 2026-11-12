@@ -1,6 +1,6 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildVCard, escapeVCardText, splitName } from '../src/presets/vcard.js';
+import { buildVCard, escapeVCardText, escapeVCardUri, splitName } from '../src/presets/vcard.js';
 
 describe('escapeVCardText', () => {
   test('escapes backslash, comma, semicolon and newlines', () => {
@@ -79,5 +79,67 @@ describe('buildVCard', () => {
     assert.doesNotMatch(card, /ORG|TEL|EMAIL/);
     assert.throws(() => buildVCard({}), /name/i);
     assert.throws(() => buildVCard({ name: '   ' }), /name/i);
+  });
+});
+
+describe('vCard URL is escaped as a URI, not as text', () => {
+  const urlLine = (url) => buildVCard({ name: 'X Y', url }).split('\r\n').find((line) => line.startsWith('URL:'));
+
+  test('commas, semicolons and other URL syntax are left exactly as they are', () => {
+    for (const url of [
+      'https://example.com/a,b;c',
+      'https://example.com/search?q=a,b;c&lang=en;q=0.8#frag,ment',
+      'https://example.com/maps/@40.4168,-3.7038,15z',
+      'https://user:pw@example.com:8080/p/a/t/h;param?x=1&y=2+3#top',
+      'https://example.com/~user/(x)!$*\'',
+      'http://[2001:db8::1]:8080/a,b',
+      'mailto:someone@example.com?subject=a,b;c',
+    ]) {
+      assert.equal(urlLine(url), `URL:${url}`);
+      assert.equal(escapeVCardUri(url), url);
+    }
+  });
+
+  test('no backslash is ever added (the bug: "," and ";" used to become "\\," and "\\;")', () => {
+    const line = urlLine('https://example.com/a,b;c');
+    assert.doesNotMatch(line, /\\/);
+    assert.equal(new URL(line.slice(4)).href, 'https://example.com/a,b;c');
+  });
+
+  test('existing percent escapes are kept, not double-encoded', () => {
+    assert.equal(escapeVCardUri('https://example.com/a%20b%2Cc%3b?d=%E2%9C%93'), 'https://example.com/a%20b%2Cc%3b?d=%E2%9C%93');
+    assert.equal(escapeVCardUri('https://example.com/100%'), 'https://example.com/100%25');
+    assert.equal(escapeVCardUri('https://example.com/%zz'), 'https://example.com/%25zz');
+  });
+
+  test('characters a URI cannot contain are percent-encoded', () => {
+    assert.equal(escapeVCardUri('https://example.com/a b'), 'https://example.com/a%20b');
+    assert.equal(escapeVCardUri('https://example.com/a\\b'), 'https://example.com/a%5Cb');
+    assert.equal(escapeVCardUri('https://example.com/"<x>"'), 'https://example.com/%22%3Cx%3E%22');
+    assert.equal(escapeVCardUri('https://example.com/café/日本'), 'https://example.com/caf%C3%A9/%E6%97%A5%E6%9C%AC');
+    assert.equal(escapeVCardUri('  https://example.com/  '), 'https://example.com/');
+  });
+
+  test('a line break in the URL cannot inject another vCard property', () => {
+    for (const breakChars of ['\r\n', '\n', '\r']) {
+      const card = buildVCard({ name: 'X Y', url: `https://example.com/${breakChars}TEL:+1900EVIL${breakChars}URL:https://evil.example/` });
+      const lines = card.split('\r\n');
+      assert.deepEqual(lines.slice(0, 4), ['BEGIN:VCARD', 'VERSION:3.0', 'N:Y;X;;;', 'FN:X Y']);
+      assert.equal(lines.length, 7, card); // 4 + URL + END + trailing empty
+      assert.equal(lines[5], 'END:VCARD');
+      assert.equal(lines.filter((line) => /^(TEL|URL):/.test(line)).length, 1);
+      assert.match(lines[4], /^URL:https:\/\/example\.com\/(%0D|%0A)+TEL:\+1900EVIL(%0D|%0A)+URL:https:\/\/evil\.example\/$/);
+      assert.doesNotMatch(card.replace(/\r\n/g, ''), /[\r\n]/);
+    }
+  });
+
+  test('other control characters are encoded too, and invalid text is refused', () => {
+    assert.equal(escapeVCardUri('https://example.com/\t\x00\x1b\x7f'), 'https://example.com/%09%00%1B%7F');
+    assert.throws(() => buildVCard({ name: 'X Y', url: 'https://example.com/\ud800' }), RangeError);
+  });
+
+  test('an empty URL is omitted', () => {
+    assert.doesNotMatch(buildVCard({ name: 'X Y', url: '   ' }), /URL/);
+    assert.doesNotMatch(buildVCard({ name: 'X Y' }), /URL/);
   });
 });

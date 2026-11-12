@@ -111,13 +111,19 @@ describe('--logo with SVG output', () => {
     assert.match(readFileSync(file, 'utf8'), /<image href="data:image\/png;base64,/);
   });
 
-  test('SVG logo is inlined', () => {
+  // Was 'SVG logo is inlined': it is now embedded as a data URI image.
+  test('SVG logo becomes a base64 data URI image, not inline markup', () => {
     const file = tmp('svg');
     const { status, stderr } = qrgen(['x', '-o', file, '--logo', logoSvg, '--logo-bg', '#fff']);
     assert.equal(status, 0, stderr);
     const svg = readFileSync(file, 'utf8');
-    assert.match(svg, /<svg x="[\d.]+" y="[\d.]+" width="[\d.]+" height="[\d.]+" viewBox="0 0 10 10"/);
-    assert.match(svg, /<circle cx="5" cy="5" r="5" fill="#00f"\/>/);
+    const m = /<image href="data:image\/svg\+xml;base64,([A-Za-z0-9+/]+={0,2})" x="[\d.]+" y="[\d.]+" width="[\d.]+" height="[\d.]+"/.exec(svg);
+    assert.ok(m, 'no base64 SVG <image> in the output');
+    assert.equal(svg.match(/<svg\b/g).length, 1);
+    assert.doesNotMatch(svg, /<circle/);
+    const embedded = Buffer.from(m[1], 'base64').toString('utf8');
+    assert.match(embedded, /viewBox="0 0 10 10"/);
+    assert.match(embedded, /<circle cx="5" cy="5" r="5" fill="#00f"\/>/);
   });
 });
 

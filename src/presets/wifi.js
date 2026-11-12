@@ -28,6 +28,22 @@ export function normalizeWifiSecurity(input) {
   return type;
 }
 
+// CR, LF and every other control character (C0, DEL, C1) plus the Unicode
+// line and paragraph separators. None can be typed into a phone's Wi-Fi
+// settings, and a line break inside a field can make a reader see extra
+// fields that the person generating the code never intended.
+const CONTROL_CHARACTER = /[\u0000-\u001f\u007f-\u009f\u2028\u2029]/;
+
+/** Refuse a field that contains control characters. The value itself is never echoed. */
+function assertNoControlCharacters(field, value) {
+  const match = CONTROL_CHARACTER.exec(value);
+  if (!match) return;
+  const code = match[0].charCodeAt(0).toString(16).toUpperCase().padStart(4, '0');
+  throw new RangeError(
+    `The Wi-Fi ${field} contains a control character (U+${code} at position ${match.index + 1}): line breaks and other control characters are not allowed`,
+  );
+}
+
 /** Backslash-escape the characters that have meaning in the format. */
 export function escapeWifiValue(value) {
   return String(value).replace(/([\\;,:"])/g, '\\$1');
@@ -43,7 +59,9 @@ export function escapeWifiValue(value) {
  */
 export function buildWifiPayload({ ssid, password, security, hidden = false } = {}) {
   if (typeof ssid !== 'string' || ssid.length === 0) throw new RangeError('Wi-Fi ssid is required');
+  assertNoControlCharacters('ssid', ssid);
   const type = normalizeWifiSecurity(security);
+  if (typeof password === 'string') assertNoControlCharacters('password', password);
   const hasPassword = typeof password === 'string' && password.length > 0;
   if (type === 'nopass' && hasPassword) {
     throw new RangeError('An open network (security nopass) cannot have a password');

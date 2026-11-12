@@ -66,10 +66,17 @@ describe('sanitizeSvg', () => {
 });
 
 describe('embedSvgLogo', () => {
-  test('wraps the sanitized content in a nested <svg> positioned at the box', () => {
+  // The logo used to be inlined as a nested <svg>. It is now a base64 data
+  // URI <image>, so its markup is never part of the outer document.
+  test('embeds the sanitized content as a base64 <image> positioned at the box', () => {
     const markup = embedSvgLogo(LOGO, { x: 10.5, y: 12.25, w: 8, h: 4 });
-    assert.match(markup, /^<svg x="10.5" y="12.25" width="8" height="4" viewBox="0 0 100 50" preserveAspectRatio="xMidYMid meet">/);
-    assert.match(markup, /<\/svg>$/);
-    assert.doesNotMatch(markup, /<script|onload|evil/);
+    const m = /^<image href="data:image\/svg\+xml;base64,([A-Za-z0-9+/]+={0,2})" x="10.5" y="12.25" width="8" height="4" preserveAspectRatio="xMidYMid meet"\/>$/.exec(markup);
+    assert.ok(m, markup.slice(0, 120));
+    assert.doesNotMatch(markup, /<svg|<script|onload|evil/);
+    const logo = Buffer.from(m[1], 'base64').toString('utf8');
+    assert.match(logo, /^<svg xmlns="http:\/\/www\.w3\.org\/2000\/svg" xmlns:xlink="http:\/\/www\.w3\.org\/1999\/xlink" width="100" height="50" viewBox="0 0 100 50">/);
+    assert.match(logo, /<\/svg>$/);
+    assert.match(logo, /<circle cx="25" cy="25" r="20" fill="#f00"\/>/);
+    assert.doesNotMatch(logo, /<script|onload|evil/);
   });
 });

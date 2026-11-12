@@ -40,8 +40,10 @@ jobs:
           node-version: ${{ matrix.node }}
           cache: npm
 
+      # --ignore-scripts: dependencies never get to run install scripts in CI
+      # (also set in .npmrc; repeated here so it holds even without that file).
       - name: Install dependencies
-        run: npm ci
+        run: npm ci --ignore-scripts
 
       - name: Run tests
         run: npm test

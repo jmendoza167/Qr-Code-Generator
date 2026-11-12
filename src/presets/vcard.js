@@ -3,7 +3,8 @@
  * most reliably from a QR code. Pure JS, no Node APIs.
  *
  * Lines end with CRLF. Text values escape backslash, comma, semicolon and
- * line breaks. The N (structured name) field is
+ * line breaks; the URL is a URI and is percent-encoded instead (see
+ * escapeVCardUri). The N (structured name) field is
  * Family;Given;Additional;Prefix;Suffix, and FN is the display name.
  */
 
@@ -14,6 +15,28 @@ export function escapeVCardText(value) {
     .replace(/\r\n|\r|\n/g, '\\n')
     .replace(/,/g, '\\,')
     .replace(/;/g, '\\;');
+}
+
+/**
+ * Escape a value of type URI (the URL property). A URI is not text: the
+ * backslash escapes of escapeVCardText() would end up inside the address
+ * and break it ("a,b" must stay "a,b", not become "a\,b"). Instead the
+ * characters a URI may not contain are percent-encoded: spaces, control
+ * characters (so a line break cannot start a new property), backslash,
+ * quotes and non-ASCII text (as UTF-8). Everything with a meaning in a
+ * URL, including "," ";" and existing %XX escapes, is left untouched.
+ */
+export function escapeVCardUri(value) {
+  let encoded;
+  try {
+    encoded = encodeURI(String(value).trim());
+  } catch {
+    throw new RangeError('The contact URL contains invalid characters (an unpaired surrogate)');
+  }
+  return encoded
+    .replace(/%25([0-9A-Fa-f]{2})/g, '%$1') // keep escapes that were already there
+    .replace(/%5B/g, '[') // IPv6 hosts: http://[::1]/
+    .replace(/%5D/g, ']');
 }
 
 /**
@@ -56,7 +79,7 @@ export function buildVCard({ name, phones, emails, org, title, url, address, not
   text('TITLE', title);
   for (const phone of nonEmpty(phones)) lines.push(`TEL:${escapeVCardText(phone)}`);
   for (const email of nonEmpty(emails)) lines.push(`EMAIL:${escapeVCardText(email)}`);
-  text('URL', url);
+  if (typeof url === 'string' && url.trim().length > 0) lines.push(`URL:${escapeVCardUri(url)}`);
   if (typeof address === 'string' && address.trim().length > 0) {
     lines.push(`ADR:;;${escapeVCardText(address.trim())};;;;`);
   }

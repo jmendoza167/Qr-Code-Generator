@@ -15,7 +15,7 @@
 import { parseArgs } from 'node:util';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { extname } from 'node:path';
-import { encode } from './core/qr.js';
+import { encode, getCapacity, DataTooLongError, MAX_VERSION } from './core/qr.js';
 import { getEccLevel } from './core/version.js';
 import { normalizeStyle, checkContrast } from './render/style.js';
 import { encodeWithLogo, DEFAULT_LOGO_SIZE, DEFAULT_LOGO_PADDING, MAX_LOGO_SIZE } from './render/logo.js';
@@ -37,6 +37,29 @@ export class UsageError extends Error {
     super(message);
     this.name = 'UsageError';
   }
+}
+
+// Control characters (C0 including ESC, DEL, C1 including the one-byte CSI),
+// the Unicode line/paragraph separators and the bidirectional overrides.
+const UNPRINTABLE = /[\u0000-\u001f\u007f-\u009f\u2028\u2029\u202a-\u202e\u2066-\u2069]/g;
+
+/**
+ * Make text safe to print on a terminal. File names, option values and the
+ * messages built from them are user input: echoed raw, an ESC in them would
+ * be run by the terminal as an escape sequence (move the cursor, rewrite
+ * earlier output, change the window title...). Every control character is
+ * shown as a visible escape such as \x1b instead.
+ */
+export function printable(text) {
+  return String(text).replace(UNPRINTABLE, (ch) => {
+    const code = ch.charCodeAt(0);
+    return code < 0x100 ? `\\x${code.toString(16).padStart(2, '0')}` : `\\u${code.toString(16).padStart(4, '0')}`;
+  });
+}
+
+/** Write one line of message text (never the QR code itself) with control characters escaped. */
+function say(stream, line) {
+  stream.write(`${printable(line)}\n`);
 }
 
 /** Options every command accepts. */
@@ -344,11 +367,36 @@ export function parseCliArgs(argv) {
   };
 }
 
-/** Read all of stdin as UTF-8, dropping a BOM and one trailing line break. */
+/**
+ * The most input a QR code can ever hold: the largest symbol at the lowest
+ * error correction level stores 7089 digits (one byte each). Anything in
+ * another mode fits less (2953 bytes of UTF-8 text).
+ */
+export const MAX_INPUT_BYTES = getCapacity(MAX_VERSION, 'L', 'numeric');
+// A UTF-8 byte order mark (3 bytes) and one trailing CRLF are dropped, so they do not count.
+const STDIN_ALLOWANCE = 5;
+
+/**
+ * Read stdin as UTF-8, dropping a BOM and one trailing line break. Reading
+ * stops as soon as the input is larger than any QR code could hold, so an
+ * endless or huge stream cannot fill the memory.
+ */
 async function readStdin(stdin) {
   if (stdin.isTTY) return '';
   const chunks = [];
-  for await (const chunk of stdin) chunks.push(chunk);
+  let total = 0;
+  for await (const chunk of stdin) {
+    const bytes = typeof chunk === 'string' ? Buffer.from(chunk, 'utf8') : chunk;
+    total += bytes.length;
+    if (total > MAX_INPUT_BYTES + STDIN_ALLOWANCE) {
+      // Throwing out of the loop closes the stream: nothing more is read.
+      throw new DataTooLongError(
+        `Data too long: the input is larger than ${MAX_INPUT_BYTES} bytes, more than the largest QR code (version ${MAX_VERSION}-L) can hold`,
+        { capacity: MAX_INPUT_BYTES },
+      );
+    }
+    chunks.push(bytes);
+  }
   let text = Buffer.concat(chunks).toString('utf8');
   if (text.charCodeAt(0) === 0xfeff) text = text.slice(1);
   return text.replace(/\r?\n$/, '');
@@ -395,7 +443,8 @@ function promptHidden(question, { stdin, stderr }) {
  * Read and validate the logo file. Returns the image's aspect ratio and the
  * `logo` fields the renderer expects: PNG logos give `image` (decoded RGBA,
  * for PNG output) and `png` (the raw bytes, embedded as a data URI in SVG
- * output); SVG logos give `svg` (markup, sanitized by the renderer).
+ * output); SVG logos give `svg` (markup; the renderer sanitizes it and embeds
+ * it as a data URI image, never inline).
  */
 function loadLogo({ file }, format) {
   let bytes;
@@ -459,13 +508,14 @@ export async function run(argv, { stdin = process.stdin, stdout = process.stdout
       built = await COMMANDS[args.command].buildText(args.values, args.positionals, { stdin, stdout, stderr });
     } catch (err) {
       // Preset builders throw RangeError for bad field values: user input.
-      throw err instanceof RangeError ? new UsageError(err.message) : err;
+      // Too much data is an encoding error (exit code 1), like in encode().
+      throw err instanceof RangeError && !(err instanceof DataTooLongError) ? new UsageError(err.message) : err;
     }
-    for (const note of built.notes) stderr.write(`${note}\n`);
+    for (const note of built.notes) say(stderr, note);
 
     let qr;
     if (args.output) {
-      for (const warning of checkContrast(args.style)) stderr.write(`Warning: ${warning}\n`);
+      for (const warning of checkContrast(args.style)) say(stderr, `Warning: ${warning}`);
       const renderOptions = {
         scale: args.scale,
         margin: args.margin,
@@ -481,7 +531,7 @@ export async function run(argv, { stdin = process.stdin, stdout = process.stdout
       if (args.logo) {
         const loaded = loadLogo(args.logo, args.format);
         if (args.eccExplicit && args.ecc !== 'H') {
-          stderr.write(`Warning: ECC level ${args.ecc} overridden to H because a logo covers part of the code\n`);
+          say(stderr, `Warning: ECC level ${args.ecc} overridden to H because a logo covers part of the code`);
         }
         const withLogo = encodeWithLogo(built.text, {
           sizePercent: args.logo.sizePercent,
@@ -490,8 +540,8 @@ export async function run(argv, { stdin = process.stdin, stdout = process.stdout
         });
         qr = withLogo.qr;
         matrix = withLogo.plan.matrix;
-        for (const note of withLogo.notes) stderr.write(`Note: ${note}\n`);
-        for (const warning of withLogo.plan.warnings) stderr.write(`Warning: ${warning}\n`);
+        for (const note of withLogo.notes) say(stderr, `Note: ${note}`);
+        for (const warning of withLogo.plan.warnings) say(stderr, `Warning: ${warning}`);
         renderOptions.logo = { ...loaded.logo, box: withLogo.plan.box, area: withLogo.plan.area, bg: args.logo.bg };
       } else {
         qr = encode(built.text, { ecc: args.ecc });
@@ -499,7 +549,7 @@ export async function run(argv, { stdin = process.stdin, stdout = process.stdout
       }
       const data = args.format === 'png' ? renderPng(matrix, renderOptions) : renderSvg(matrix, renderOptions);
       writeFileSync(args.output, data);
-      stdout.write(`Saved ${args.output}\n`);
+      say(stdout, `Saved ${args.output}`);
     } else {
       if (!args.style.isPlain) {
         stderr.write('Note: style options only apply to PNG/SVG files (-o); the terminal shows the plain code.\n');
@@ -512,7 +562,7 @@ export async function run(argv, { stdin = process.stdin, stdout = process.stdout
     if (args.info) stdout.write(formatInfo(qr));
     return EXIT_OK;
   } catch (err) {
-    stderr.write(`qrgen: ${err.message}\n`);
+    say(stderr, `qrgen: ${err.message}`);
     if (err instanceof UsageError) {
       stderr.write("Try 'qrgen --help' for more information.\n");
       return EXIT_USAGE;

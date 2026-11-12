@@ -365,7 +365,7 @@ src/render/
   png-decode.js       minimal PNG reader for logos (Node: zlib)
   style.js            shapes, finder styles, gradients, contrast (browser-safe)
   logo.js             logo placement maths (browser-safe)
-  svg-sanitize.js     strips scripts/handlers/external refs from SVG logos (browser-safe)
+  svg-sanitize.js     sanitizes SVG logos and embeds them as a data URI image (browser-safe)
   base64.js           data URIs for embedded PNG logos (browser-safe)
   color.js            hex colour parsing
 test/                 node --test suites, including jsQR round trips
