@@ -40,6 +40,15 @@ $ qrgen "hello world"
 - Tested against an independent decoder (jsQR) across all modes, levels,
   masks, styles, logos and a spread of versions up to 40.
 
+## Gallery
+
+| Rounded | Dots + circle finders | Gradient | Logo + radial gradient |
+| --- | --- | --- | --- |
+| ![rounded](docs/examples/rounded.png) | ![dots](docs/examples/dots.png) | ![gradient](docs/examples/gradient.png) | ![logo](docs/examples/logo-instagram.png) |
+
+Every image, with the exact command that produced it, is in the
+[examples gallery](docs/examples/README.md).
+
 ## Requirements
 
 - Node.js 20 or newer (developed on Node 24).
