@@ -33,8 +33,23 @@ const images = entries.filter((f) => /\.(png|svg)$/i.test(f));
  * Lightweight well-formedness check for an SVG document: a single <svg>
  * root with the SVG namespace, and properly nested open/close tags.
  */
+/**
+ * Remove every match of `pattern`, repeating until nothing changes, so a
+ * removal cannot leave a new match behind (e.g. "<!--<!---->-->" would
+ * otherwise become "<!---->"). Both patterns here are multi-character
+ * delimiters, which is why a single replace is not enough.
+ */
+function stripRepeatedly(text, pattern) {
+  let previous;
+  do {
+    previous = text;
+    text = text.replace(pattern, '');
+  } while (text !== previous);
+  return text;
+}
+
 function assertWellFormedSvg(source, label) {
-  const body = source.replace(/<\?xml[\s\S]*?\?>/g, '').replace(/<!--[\s\S]*?-->/g, '').trim();
+  const body = stripRepeatedly(stripRepeatedly(source, /<\?xml[\s\S]*?\?>/g), /<!--[\s\S]*?-->/g).trim();
   assert.ok(body.startsWith('<svg'), `${label}: must start with <svg`);
   assert.ok(body.endsWith('</svg>'), `${label}: must end with </svg>`);
   assert.match(body, /^<svg[^>]*\sxmlns="http:\/\/www\.w3\.org\/2000\/svg"/, `${label}: SVG namespace`);
