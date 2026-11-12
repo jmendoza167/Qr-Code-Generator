@@ -384,6 +384,12 @@ covered end to end.
 
 - Static website using the browser-safe modules.
 
+## Security
+
+To report a vulnerability, please use GitHub's private reporting rather
+than a public issue; see [SECURITY.md](SECURITY.md) for how, what to
+include, and what to expect.
+
 ## License
 
 MIT
