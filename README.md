@@ -4,26 +4,6 @@
 
 ![Terminal demo: qrgen printing a QR code, showing --info, saving a styled PNG and creating a Wi-Fi code with a hidden password prompt](docs/demo.gif)
 
-A QR code generator written in JavaScript, with the QR encoder implemented
-**from scratch** following ISO/IEC 18004. No QR libraries, no runtime
-dependencies. It is a terminal tool today, and the same engine is built to
-power a static website later.
-
-```text
-$ qrgen "hello world"
-    █▀▀▀▀▀█  ▀▄▀▀ █▀▀▀▀▀█
-    █ ███ █ ███▀▄ █ ███ █
-    █ ▀▀▀ █ █ ▀▄▀ █ ▀▀▀ █
-    ▀▀▀▀▀▀▀ █ █ ▀ ▀▀▀▀▀▀▀
-    ▀▄█▀██▀▄ █ █▄▄█████ ▄
-    █ █ ▀█▀▀ █▀▄██▀ ▄██▀
-       ▀ ▀▀▀█▀▄ █▀▀ ▄▄  █
-    █▀▀▀▀▀█ ▄  ▀ ▄▀▄ ▄██▄
-    █ ███ █ █▄ ▀▄▄██▄▄  ▀
-    █ ▀▀▀ █ ▀█▄ █▄ ▀▄▄█
-    ▀▀▀▀▀▀▀ ▀▀ ▀▀ ▀ ▀  ▀
-```
-
 ## Features
 
 - Numeric, alphanumeric and byte (UTF-8) modes, picked automatically.
