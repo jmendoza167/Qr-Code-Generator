@@ -8,34 +8,12 @@ import { createDeflate, deflateSync } from 'node:zlib';
 import { once } from 'node:events';
 import { pathToFileURL, fileURLToPath } from 'node:url';
 import { decodePng, PngDecodeError, MAX_PNG_DIMENSION, MAX_PNG_PIXELS } from '../src/render/png-decode.js';
-import { crc32 } from '../src/render/png.js';
 import { makeNoiseImage, encodeWithPngjs } from './helpers/fixtures.js';
+import { buildPng, ihdr } from './helpers/png-chunks.js';
 
 const DECODER_URL = pathToFileURL(fileURLToPath(new URL('../src/render/png-decode.js', import.meta.url))).href;
 const BIN = fileURLToPath(new URL('../bin/qrgen.js', import.meta.url));
 const MB = 1024 * 1024;
-
-function buildPng(chunks) {
-  const parts = [Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])];
-  for (const [type, data] of chunks) {
-    const typeAndData = Buffer.concat([Buffer.from(type, 'latin1'), data]);
-    const out = Buffer.alloc(typeAndData.length + 8);
-    out.writeUInt32BE(data.length, 0);
-    typeAndData.copy(out, 4);
-    out.writeUInt32BE(crc32(typeAndData), typeAndData.length + 4);
-    parts.push(out);
-  }
-  return Buffer.concat(parts);
-}
-
-function ihdr(width, height, bitDepth = 8, colorType = 6) {
-  const b = Buffer.alloc(13);
-  b.writeUInt32BE(width, 0);
-  b.writeUInt32BE(height, 4);
-  b[8] = bitDepth;
-  b[9] = colorType;
-  return b;
-}
 
 const png = (width, height, idat, bitDepth, colorType) =>
   buildPng([

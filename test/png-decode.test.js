@@ -3,9 +3,10 @@ import assert from 'node:assert/strict';
 import { deflateSync } from 'node:zlib';
 import pngjs from 'pngjs';
 import { decodePng, PngDecodeError } from '../src/render/png-decode.js';
-import { renderPng, crc32 } from '../src/render/png.js';
+import { renderPng } from '../src/render/png.js';
 import { encode } from '../src/core/qr.js';
 import { makeNoiseImage, encodeWithPngjs } from './helpers/fixtures.js';
+import { buildPng, ihdr } from './helpers/png-chunks.js';
 
 const { PNG } = pngjs;
 
@@ -16,30 +17,6 @@ function assertSameAsPngjs(buffer, label) {
   assert.equal(ours.width, ref.width, `${label} width`);
   assert.equal(ours.height, ref.height, `${label} height`);
   assert.deepEqual(Buffer.from(ours.data), Buffer.from(ref.data), `${label} pixels`);
-}
-
-/** Build a PNG by hand from chunks (for cases pngjs cannot write). */
-function buildPng(chunks) {
-  const parts = [Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])];
-  for (const [type, data] of chunks) {
-    const typeAndData = Buffer.concat([Buffer.from(type, 'latin1'), data]);
-    const out = Buffer.alloc(typeAndData.length + 8);
-    out.writeUInt32BE(data.length, 0);
-    typeAndData.copy(out, 4);
-    out.writeUInt32BE(crc32(typeAndData), typeAndData.length + 4);
-    parts.push(out);
-  }
-  return Buffer.concat(parts);
-}
-
-function ihdr(width, height, bitDepth, colorType, interlace = 0) {
-  const b = Buffer.alloc(13);
-  b.writeUInt32BE(width, 0);
-  b.writeUInt32BE(height, 4);
-  b[8] = bitDepth;
-  b[9] = colorType;
-  b[12] = interlace;
-  return b;
 }
 
 describe('decodePng: supported colour types (8-bit, non-interlaced)', () => {
