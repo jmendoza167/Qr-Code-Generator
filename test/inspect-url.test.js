@@ -39,9 +39,42 @@ describe('inspectUrl: benign URLs produce no findings', () => {
     }
   });
 
-  test('a brand on its own country domain is the brand', () => {
-    for (const raw of ['https://amazon.de', 'https://www.amazon.co.uk/gp/css/order-history', 'https://apple.co.jp', 'https://paypal.me/someone']) {
+  test('a brand on one of its listed real domains, country domains included, is the brand', () => {
+    for (const raw of [
+      'https://amazon.com',
+      'https://amazon.de',
+      'https://www.amazon.co.uk/gp/css/order-history',
+      'https://amazon.co.jp',
+      'https://apple.co.jp',
+      'https://www.apple.com/uk/',
+      'https://google.de',
+      'https://www.google.co.uk/search?q=x',
+      'https://google.ru/',
+      'https://microsoft.com',
+      'https://paypal.me/someone',
+      'https://www.paypal.com/signin',
+    ]) {
       assert.equal(ids(raw).some((id) => id.startsWith('brand-')), false, raw);
+    }
+  });
+
+  test('the exact brand name on a generic TLD the brand does not use is high', () => {
+    for (const raw of ['https://paypal.top/', 'https://apple.xyz/', 'https://microsoft.shop/login', 'https://www.amazon.click/', 'https://paypal.evil/', 'https://google.zip/']) {
+      const findings = inspectUrl(raw);
+      const hit = findings.find((f) => f.id === 'brand-unknown-tld');
+      assert.equal(hit?.severity, 'high', `${raw}: ${JSON.stringify(findings)}`);
+      assert.match(hit.detail, /is not one of \w+'s domains/);
+      assert.equal(findings.some((f) => f.id === 'brand-lookalike'), false, `${raw}: not also a lookalike`);
+    }
+  });
+
+  test('the exact brand name on an unlisted country-code domain is medium, with a check-it message', () => {
+    for (const raw of ['https://amazon.cl/', 'https://www.paypal.co.nz/', 'https://apple.com.ar/', 'https://microsoft.de/']) {
+      const findings = inspectUrl(raw);
+      const hit = findings.find((f) => f.id === 'brand-unknown-tld');
+      assert.equal(hit?.severity, 'medium', `${raw}: ${JSON.stringify(findings)}`);
+      assert.match(hit.title, /country domain not in the known list/);
+      assert.match(hit.detail, /check it is the brand's official site for that country/);
     }
   });
 
@@ -168,8 +201,7 @@ describe('inspectUrl: brand lookalikes', () => {
     assert.equal(severity('https://google.evil.example/', 'brand-in-subdomain'), 'high');
   });
 
-  test('the brand on a different TLD is a lookalike; its own domains are not', () => {
-    assert.equal(severity('https://paypal.evil/', 'brand-lookalike'), undefined, 'exact brand label on another TLD is treated as the brand\'s own');
+  test('the brand\'s own domains and infrastructure are never flagged', () => {
     assert.equal(ids('https://www.paypal.com/').some((id) => id.startsWith('brand-')), false);
     assert.equal(ids('https://signin.paypalobjects.com/').some((id) => id.startsWith('brand-')), false);
     assert.equal(ids('https://m.facebook.com/').some((id) => id.startsWith('brand-')), false);

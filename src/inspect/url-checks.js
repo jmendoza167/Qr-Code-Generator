@@ -102,6 +102,12 @@ export function registrableDomain(host) {
   return labels.slice(-2).join('.');
 }
 
+/** Is the registrable domain under a two-letter country-code TLD (amazon.cl, example.co.uk)? */
+export function isCountryCodeDomain(registrable) {
+  const tld = registrable.split('.').pop();
+  return /^[a-z]{2}$/i.test(tld);
+}
+
 /** Replace every lookalike character (Cyrillic а, digit 1...) with the Latin letter it imitates. */
 export function skeleton(label) {
   let out = '';
@@ -260,15 +266,34 @@ function checkHost(url, raw, where, findings) {
 function checkBrands(labels, registrable, subLabels, where, findings) {
   const registrableLabel = registrable.split('.')[0];
   const seen = new Set();
-  const report = (id, title, detail) => {
+  const report = (id, title, detail, severity = 'high') => {
     if (seen.has(id)) return;
     seen.add(id);
-    findings.push(finding(id, 'high', title, `${detail}.`, where));
+    findings.push(finding(id, severity, title, `${detail}.`, where));
   };
   const hasToken = (label, name) => label.split('-').includes(name) || skeleton(label).split('-').includes(name);
 
   for (const brand of BRANDS) {
-    if (brand.domains.includes(registrable) || registrableLabel === brand.name) continue; // the brand's own domain
+    if (brand.domains.includes(registrable)) continue; // one of the brand's own domains
+
+    if (registrableLabel === brand.name) {
+      // The exact brand name under a domain not on the brand's list. On a
+      // generic TLD (paypal.top, apple.xyz) that is the classic cheap-TLD
+      // phishing trick. On a country-code TLD (amazon.cl) it may well be the
+      // brand's real site for that country, so it is only a warning to check.
+      const own = brand.domains.filter((d) => d.startsWith(`${brand.name}.`)).slice(0, 4).join(', ');
+      if (isCountryCodeDomain(registrable)) {
+        report(
+          'brand-unknown-tld',
+          'Brand name on a country domain not in the known list',
+          `"${registrable}" is not among the ${brand.name} sites known here (${own}, ...); check it is the brand's official site for that country`,
+          'medium',
+        );
+      } else {
+        report('brand-unknown-tld', "Brand name on a domain the brand doesn't use", `"${registrable}" is not one of ${brand.name}'s domains (${own}, ...)`);
+      }
+      continue;
+    }
 
     if (skeleton(registrableLabel) === brand.name) {
       report('brand-lookalike', 'Domain imitates a well-known brand', `"${registrableLabel}" reads like "${brand.name}" with swapped characters`);

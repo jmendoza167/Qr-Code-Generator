@@ -241,7 +241,9 @@ What it looks at:
   IP-address hosts in dotted, decimal, hex or octal form, internationalised
   domains (punycode, mixed alphabets in one label, Cyrillic or Greek letters
   posing as Latin), lookalikes of a small list of commonly phished brands
-  (`paypa1.com`, `paypal-secure.com`, `paypal.com.evil.example`), known link
+  (`paypa1.com`, `paypal-secure.com`, `paypal.com.evil.example`), the
+  brand name on a generic domain the brand does not use (`paypal.top`, high)
+  or on a country domain not in the known list (`amazon.cl`, medium), known link
   shorteners, non-standard ports, many subdomains, heavy or double
   percent-encoding, very long URLs, and login/verify/account wording in the
   path. The last one is only a low signal on its own; combined with any

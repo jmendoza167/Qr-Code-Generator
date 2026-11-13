@@ -63,32 +63,52 @@ export const URL_SHORTENERS = Object.freeze([
 ]);
 
 /**
- * Commonly impersonated brands. `domains` are registrable domains the brand
- * itself uses (so support.apple.com or accounts.google.com are fine). A
- * registrable domain whose first label is exactly the brand name (amazon.de,
- * apple.co.uk) is also treated as the brand's own.
+ * Commonly impersonated brands. `domains` are the registrable domains the
+ * brand itself really uses: its main site, its country sites (amazon.de,
+ * apple.co.jp) and its infrastructure (googleapis.com, amazonaws.com), so
+ * support.apple.com or accounts.google.com are fine. The exact brand name
+ * on any other registrable domain is flagged: high on a generic TLD
+ * (paypal.top, apple.xyz: registering a brand under a cheap TLD is a common
+ * phishing trick), medium on an unlisted country-code TLD (amazon.cl), which
+ * may well be the brand's real site for that country and should be checked.
+ * The lists are not complete; add a real country site when it turns up.
  */
+const AMAZON_COUNTRIES = ['com', 'ca', 'com.mx', 'com.br', 'co.uk', 'de', 'fr', 'it', 'es', 'nl', 'se', 'pl', 'com.be', 'com.tr', 'ae', 'sa', 'eg', 'in', 'sg', 'co.jp', 'com.au', 'cn'];
+const APPLE_COUNTRIES = ['com', 'ca', 'com.mx', 'com.br', 'co.uk', 'de', 'fr', 'it', 'es', 'nl', 'se', 'pl', 'be', 'ch', 'at', 'pt', 'ie', 'co.jp', 'cn', 'com.cn', 'com.au', 'co.nz', 'co.kr', 'com.sg', 'com.hk', 'com.tw', 'in', 'ae', 'sa'];
+const GOOGLE_COUNTRIES = ['com', 'ca', 'com.mx', 'com.br', 'co.uk', 'de', 'fr', 'it', 'es', 'nl', 'se', 'pl', 'be', 'ch', 'at', 'pt', 'ie', 'ru', 'co.jp', 'cn', 'com.au', 'co.nz', 'co.kr', 'com.sg', 'com.hk', 'com.tw', 'co.in', 'ae', 'com.ar', 'cl', 'com.co', 'com.pe', 'dk', 'no', 'fi', 'cz', 'gr', 'hu', 'ro', 'co.za', 'com.tr', 'com.ua'];
+const MICROSOFT_COUNTRIES = ['com', 'net'];
+const withCountries = (name, countries, extra) => [...countries.map((cc) => `${name}.${cc}`), ...extra];
+
 export const BRANDS = Object.freeze([
   { name: 'paypal', domains: ['paypal.com', 'paypal.me', 'paypalobjects.com', 'paypal-community.com'] },
-  { name: 'apple', domains: ['apple.com', 'icloud.com', 'itunes.com', 'apple.news', 'applemusic.com'] },
+  { name: 'apple', domains: withCountries('apple', APPLE_COUNTRIES, ['icloud.com', 'itunes.com', 'apple.news', 'applemusic.com']) },
   { name: 'icloud', domains: ['icloud.com', 'apple.com'] },
   {
     name: 'google',
-    domains: ['google.com', 'googleapis.com', 'gstatic.com', 'googleusercontent.com', 'withgoogle.com', 'goo.gl', 'youtube.com', 'gmail.com', 'google.dev', 'googlesource.com', 'googleblog.com', 'googleadservices.com', 'googletagmanager.com', 'google-analytics.com', 'googlevideo.com', 'googlesyndication.com', 'android.com'],
+    domains: withCountries('google', GOOGLE_COUNTRIES, [
+      'googleapis.com', 'gstatic.com', 'googleusercontent.com', 'withgoogle.com', 'goo.gl', 'youtube.com', 'gmail.com', 'google.dev', 'googlesource.com',
+      'googleblog.com', 'googleadservices.com', 'googletagmanager.com', 'google-analytics.com', 'googlevideo.com', 'googlesyndication.com', 'android.com',
+    ]),
   },
   { name: 'gmail', domains: ['gmail.com', 'google.com'] },
   {
     name: 'microsoft',
-    domains: ['microsoft.com', 'microsoftonline.com', 'live.com', 'office.com', 'office365.com', 'outlook.com', 'azure.com', 'windows.com', 'msn.com', 'microsoftstore.com', 'xbox.com', 'skype.com', 'visualstudio.com', 'azurewebsites.net', 'sharepoint.com', 'onedrive.com', 'bing.com', 'microsoft.net'],
+    domains: withCountries('microsoft', MICROSOFT_COUNTRIES, [
+      'microsoftonline.com', 'live.com', 'office.com', 'office365.com', 'outlook.com', 'azure.com', 'windows.com', 'msn.com', 'microsoftstore.com',
+      'xbox.com', 'skype.com', 'visualstudio.com', 'azurewebsites.net', 'sharepoint.com', 'onedrive.com', 'bing.com',
+    ]),
   },
   { name: 'outlook', domains: ['outlook.com', 'live.com', 'office.com', 'microsoft.com'] },
   { name: 'office365', domains: ['office365.com', 'office.com', 'microsoft.com'] },
   {
     name: 'amazon',
-    domains: ['amazon.com', 'amazonaws.com', 'amazon.dev', 'primevideo.com', 'audible.com', 'amazonpay.com', 'media-amazon.com', 'ssl-images-amazon.com', 'amazontrust.com', 'awsstatic.com', 'cloudfront.net', 'a2z.com', 'amazon.jobs'],
+    domains: withCountries('amazon', AMAZON_COUNTRIES, [
+      'amazonaws.com', 'amazon.dev', 'amazon.jobs', 'primevideo.com', 'audible.com', 'amazonpay.com', 'media-amazon.com', 'ssl-images-amazon.com',
+      'amazontrust.com', 'awsstatic.com', 'cloudfront.net', 'a2z.com',
+    ]),
   },
   { name: 'netflix', domains: ['netflix.com', 'nflxext.com', 'nflximg.net', 'nflxvideo.net'] },
-  { name: 'facebook', domains: ['facebook.com', 'fb.com', 'fb.me', 'fbcdn.net', 'meta.com', 'messenger.com'] },
+  { name: 'facebook', domains: ['facebook.com', 'facebook.net', 'fb.com', 'fb.me', 'fbcdn.net', 'meta.com', 'messenger.com'] },
   { name: 'instagram', domains: ['instagram.com', 'cdninstagram.com', 'facebook.com'] },
   { name: 'whatsapp', domains: ['whatsapp.com', 'whatsapp.net', 'wa.me'] },
   { name: 'linkedin', domains: ['linkedin.com', 'lnkd.in', 'licdn.com'] },
@@ -102,15 +122,15 @@ export const BRANDS = Object.freeze([
   { name: 'wellsfargo', domains: ['wellsfargo.com', 'wf.com'] },
   { name: 'bankofamerica', domains: ['bankofamerica.com', 'bofa.com'] },
   { name: 'citibank', domains: ['citibank.com', 'citi.com'] },
-  { name: 'hsbc', domains: ['hsbc.com', 'hsbc.co.uk'] },
-  { name: 'barclays', domains: ['barclays.com', 'barclays.co.uk'] },
-  { name: 'santander', domains: ['santander.com', 'santander.co.uk', 'santander.es', 'santanderbank.com'] },
-  { name: 'bbva', domains: ['bbva.com', 'bbva.es', 'bbva.mx'] },
+  { name: 'hsbc', domains: ['hsbc.com', 'hsbc.co.uk', 'hsbc.com.hk', 'hsbc.fr', 'hsbc.ca', 'hsbc.com.mx'] },
+  { name: 'barclays', domains: ['barclays.com', 'barclays.co.uk', 'barclaycard.co.uk'] },
+  { name: 'santander', domains: ['santander.com', 'santander.co.uk', 'santander.es', 'santander.com.br', 'santander.com.mx', 'santander.cl', 'santander.pt', 'santander.de', 'santander.pl', 'santanderbank.com'] },
+  { name: 'bbva', domains: ['bbva.com', 'bbva.es', 'bbva.mx', 'bbva.com.ar', 'bbva.pe', 'bbva.com.co'] },
   { name: 'caixabank', domains: ['caixabank.com', 'caixabank.es'] },
   { name: 'revolut', domains: ['revolut.com'] },
   { name: 'usps', domains: ['usps.com', 'usps.gov'] },
   { name: 'fedex', domains: ['fedex.com'] },
-  { name: 'dhl', domains: ['dhl.com', 'dhl.de'] },
+  { name: 'dhl', domains: ['dhl.com', 'dhl.de', 'dhl.co.uk', 'dhl.es', 'dhl.fr', 'dhl.it', 'dhl.nl', 'dhlparcel.nl', 'dhl.com.mx'] },
   { name: 'ups', domains: ['ups.com'] },
 ]);
 
