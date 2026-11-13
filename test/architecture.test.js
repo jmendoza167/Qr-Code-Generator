@@ -23,6 +23,8 @@ function listJsFiles(dir) {
 const BROWSER_SAFE = [
   ...listJsFiles(join(ROOT, 'src', 'core')),
   ...listJsFiles(join(ROOT, 'src', 'presets')),
+  // The decoder: everything except the PNG convenience wrapper.
+  ...listJsFiles(join(ROOT, 'src', 'decode')).filter((f) => !f.endsWith('from-png.js')),
   join(ROOT, 'src', 'render', 'svg.js'),
   join(ROOT, 'src', 'render', 'terminal.js'),
   join(ROOT, 'src', 'render', 'color.js'),
