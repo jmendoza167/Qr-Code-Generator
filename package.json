@@ -32,6 +32,7 @@
     ".": "./src/index.js",
     "./core": "./src/core/qr.js",
     "./decode": "./src/decode/index.js",
+    "./inspect": "./src/inspect/index.js",
     "./render/terminal": "./src/render/terminal.js",
     "./render/svg": "./src/render/svg.js",
     "./render/png": "./src/render/png.js"

@@ -66,6 +66,7 @@ npm unlink -g @jmendoza167/qrgen
 qrgen [text] [options]
 qrgen wifi --ssid <name> [--pass <password>] [options]
 qrgen contact --name <name> [contact fields] [options]
+qrgen inspect <image.png> [--json]        (see "Inspect" below)
 ```
 
 Without a text argument, the text is read from standard input. To encode a
@@ -202,6 +203,81 @@ does not end up in your PowerShell history.
   ```
 
 - `echo` adds a line break; qrgen strips one trailing line break from stdin.
+
+## Inspect: check a QR code before you trust it
+
+`qrgen inspect` decodes a QR code image with qrgen's own decoder and looks
+at what is inside for the signs of phishing and abuse that a quick glance
+misses. It works entirely offline on the decoded text: it never opens the
+link, resolves the domain or asks any reputation service.
+
+```powershell
+qrgen inspect poster.png
+qrgen inspect --text "https://paypal.com@evil.example/login"
+qrgen inspect poster.png --json
+```
+
+```text
+Verdict: HIGH
+Type: URL
+Symbol: version 3, level M, mask 2, 0 codewords corrected
+
+Findings:
+  [HIGH] Fake host before @: "paypal.com" is a username, not the site: the link really goes to evil.example.
+  [LOW] Login or verification wording in the path: The path mentions "login". Normal on real sites, but it is what phishing pages look like too.
+
+Content (escaped):
+https://paypal.com@evil.example/login
+
+This is a heuristic check of the decoded content only. It cannot prove that a QR code is safe: ...
+```
+
+What it looks at:
+
+- **The payload type**: URL, Wi-Fi network, contact card, email, phone,
+  SMS, location, plain text or an unusual scheme.
+- **URLs**: dangerous schemes (`javascript:`, `data:`, `file:`, `intent:`
+  and friends), `http://` instead of `https://`, a fake host before `@`,
+  IP-address hosts in dotted, decimal, hex or octal form, internationalised
+  domains (punycode, mixed alphabets in one label, Cyrillic or Greek letters
+  posing as Latin), lookalikes of a small list of commonly phished brands
+  (`paypa1.com`, `paypal-secure.com`, `paypal.com.evil.example`), known link
+  shorteners, non-standard ports, many subdomains, heavy or double
+  percent-encoding, very long URLs, and login/verify/account wording in the
+  path. The last one is only a low signal on its own; combined with any
+  other finding it raises the verdict one step.
+- **Wi-Fi codes**: open networks, WEP, hidden networks.
+- **Contact cards, emails and SMS**: any link inside gets the URL checks;
+  pre-filled message bodies are flagged.
+- **Any payload**: control characters and bidirectional override characters
+  (text that displays reversed).
+- **The symbol itself**: a Latin-1 fallback or an ECI designator, and a
+  high number of corrected codewords, which can mean damage or a sticker
+  over the original (informational only).
+
+The brand, shortener and scheme lists live in `src/inspect/data.js`. They
+are small and deliberately non-exhaustive: matching nothing is not a clean
+bill of health, and the report says so every time. **This is a heuristic
+check. It can show that a code is suspicious; it cannot prove that one is
+safe.**
+
+The decoded content is untrusted. It is always printed with control
+characters, escape sequences and bidirectional overrides shown as escapes
+(`\x1b`, `‮`), never interpreted by your terminal. `--json` prints the
+report as JSON (`verdict`, `type`, `findings`, `text`, `meta`,
+`disclaimer`, `exitCode`); the text is raw there, JSON escaping keeps it
+safe.
+
+Exit codes for `inspect`:
+
+| Code | Meaning |
+| --- | --- |
+| 0 | no findings, or only low ones |
+| 2 | verdict medium or high |
+| 1 | error: unreadable image, no QR code found, bad arguments |
+
+Unlike the other commands, usage mistakes exit 1 here, so that 2 always
+means "suspicious" in scripts.
 
 ## Programmatic use
 
@@ -348,6 +424,24 @@ src/render/
   svg-sanitize.js     sanitizes SVG logos and embeds them as a data URI image (browser-safe)
   base64.js           data URIs for embedded PNG logos (browser-safe)
   color.js            hex colour parsing
+  image-limits.js     size caps shared by the PNG and QR decoders
+src/decode/           QR decoder, browser-safe except from-png.js
+  binarize.js         RGBA -> bits with a local threshold
+  finder.js           finder pattern search, candidate triples
+  grid.js             module sampling, size estimate, structure check
+  format.js           format / version information (BCH, nearest codeword)
+  rs-decode.js        Reed-Solomon error correction
+  segments.js         bit stream -> text (numeric, alphanumeric, byte, ECI)
+  read-matrix.js      module matrix -> text + metadata
+  decode.js           decodeQr(image): the whole pipeline
+  from-png.js         decodeQrPng(bytes) (Node: zlib)
+src/inspect/          offline phishing/abuse analysis of a payload, browser-safe
+  data.js             the small built-in lists (brands, shorteners, schemes)
+  payload.js          payload classification, embedded URL extraction
+  url-checks.js       URL checks, punycode, brand lookalikes
+  text-checks.js      control and bidi characters
+  inspect.js          inspectPayload(): findings and verdict
+  format.js           plain-text report
 test/                 node --test suites, including jsQR round trips
 ```
 
@@ -379,6 +473,15 @@ jsQR; the PNG decoder is compared byte for byte against pngjs on every
 colour type; logo placement is checked against the function-pattern map for
 many versions; SVG sanitizing, the presets and every CLI command are
 covered end to end.
+
+The decoder is checked against the encoder for every version, level, mode
+and mask, against jsQR on the same images, with a known number of damaged
+codewords inside and beyond each level's capacity, and with hostile images
+(noise, fields of finder-like squares, destroyed format information,
+16-megapixel inputs) in a child process with time and memory limits. The
+inspector has a triggering and a benign case for every check, end-to-end
+runs on malicious payloads rendered by qrgen, and a guard that fails if
+any inspect code imports a networking module.
 
 ## Roadmap
 

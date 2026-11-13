@@ -26,10 +26,15 @@ import { renderSvg } from './render/svg.js';
 import { renderPng } from './render/png.js';
 import { buildWifiPayload, normalizeWifiSecurity } from './presets/wifi.js';
 import { buildVCard } from './presets/vcard.js';
+import { decodeQrPng } from './decode/from-png.js';
+import { QrDecodeError } from './decode/errors.js';
+import { inspectPayload, formatReport } from './inspect/index.js';
 
 export const EXIT_OK = 0;
 export const EXIT_ERROR = 1;
 export const EXIT_USAGE = 2;
+/** `qrgen inspect` only: the content is suspicious (verdict medium or high). */
+export const EXIT_SUSPICIOUS = 2;
 
 /** Thrown for anything the user got wrong on the command line. */
 export class UsageError extends Error {
@@ -142,6 +147,8 @@ command name, put it after "--": qrgen -o out.png -- wifi
 Commands:
   wifi       Wi-Fi network credentials      (qrgen wifi --help)
   contact    Contact card in vCard format   (qrgen contact --help)
+  inspect    Decode a QR image and check its content for phishing signals
+                                            (qrgen inspect --help)
 
 ${OUTPUT_OPTIONS_HELP}
 Examples:
@@ -487,11 +494,104 @@ function formatInfo(qr) {
   ].join('\n');
 }
 
+// ---------------------------------------------------------------------------
+// qrgen inspect: decode an image and analyse its content, offline.
+
+const INSPECT_HELP = `Usage: qrgen inspect <image.png> [--json]
+       qrgen inspect --text "<payload>" [--json]
+
+Decode a QR code image and check its content for phishing and abuse
+signals: dangerous link types, fake hosts, lookalike and brand-imitating
+domains, link shorteners, open Wi-Fi networks, hidden characters and more.
+
+The check is heuristic and runs offline on the decoded text only: qrgen
+never opens the link and makes no network request of any kind. A clean
+result cannot prove that a code is safe; it only means none of the known
+warning signs were found.
+
+Options:
+      --text <payload>  Analyse this text instead of decoding an image
+      --json            Machine-readable output (the report plus exitCode)
+  -h, --help            Show this help
+
+The decoded content is printed with control characters escaped (\\x1b,
+\\u202e...), so a hostile payload cannot drive your terminal.
+
+Exit codes: 0 no findings or low, 2 medium or high, 1 error (unreadable
+image, no QR code found, bad arguments). Unlike the other commands, usage
+mistakes exit 1 here so that 2 always means "suspicious".
+`;
+
+const INSPECT_OPTIONS = {
+  text: { type: 'string' },
+  json: { type: 'boolean', default: false },
+  help: { type: 'boolean', short: 'h', default: false },
+};
+
+/** Line/paragraph separators and the bidi controls: valid in JSON strings, but not safe to print raw. */
+const JSON_UNSAFE = new RegExp('[\\u2028\\u2029\\u202a-\\u202e\\u2066-\\u2069]', 'g');
+
+/** JSON with those characters escaped too, so the output is safe to print as-is. */
+function safeJson(value) {
+  return JSON.stringify(value, null, 2).replace(JSON_UNSAFE, (ch) => `\\u${ch.charCodeAt(0).toString(16).padStart(4, '0')}`);
+}
+
+async function runInspect(argv, { stdout, stderr }) {
+  let values;
+  let positionals;
+  let json = argv.includes('--json');
+  const fail = (err) => {
+    if (json) stdout.write(`${safeJson({ error: { name: err.name, message: err.message }, exitCode: EXIT_ERROR })}\n`);
+    say(stderr, `qrgen inspect: ${err.message}`);
+    if (err instanceof UsageError) stderr.write("Try 'qrgen inspect --help' for more information.\n");
+    return EXIT_ERROR;
+  };
+
+  try {
+    ({ values, positionals } = parseArgs({ args: argv, options: INSPECT_OPTIONS, allowPositionals: true, strict: true }));
+  } catch (err) {
+    return fail(new UsageError(err.message));
+  }
+  json = values.json;
+  if (values.help) {
+    stdout.write(INSPECT_HELP);
+    return EXIT_OK;
+  }
+  if (values.text !== undefined && positionals.length > 0) return fail(new UsageError('Give either an image file or --text, not both'));
+  if (values.text === undefined && positionals.length !== 1) {
+    return fail(new UsageError(positionals.length === 0 ? 'Expected an image file or --text "<payload>"' : `Expected one image file but got ${positionals.length}`));
+  }
+
+  let text;
+  let meta = {};
+  if (values.text !== undefined) {
+    text = values.text;
+  } else {
+    try {
+      const decoded = decodeQrPng(readFileSync(positionals[0]));
+      text = decoded.text;
+      const { version, ecc, mask, errorsCorrected, encoding, eci, inverted } = decoded;
+      meta = { version, ecc, mask, errorsCorrected, encoding, eci, inverted };
+    } catch (err) {
+      // Unreadable file, not a PNG, oversized image, no QR code: all exit 1.
+      if (err instanceof QrDecodeError || err instanceof PngDecodeError || err instanceof RangeError || err.code !== undefined) return fail(err);
+      throw err;
+    }
+  }
+
+  const report = inspectPayload(text, meta);
+  const exitCode = report.verdict === 'medium' || report.verdict === 'high' ? EXIT_SUSPICIOUS : EXIT_OK;
+  if (json) stdout.write(`${safeJson({ ...report, exitCode })}\n`);
+  else stdout.write(formatReport(report, { escape: printable }));
+  return exitCode;
+}
+
 /**
  * Run the CLI. Streams are injectable for tests.
  * @returns {Promise<number>} exit code
  */
 export async function run(argv, { stdin = process.stdin, stdout = process.stdout, stderr = process.stderr } = {}) {
+  if (argv[0] === 'inspect') return runInspect(argv.slice(1), { stdout, stderr });
   try {
     const args = parseCliArgs(argv);
     if (args.help) {
