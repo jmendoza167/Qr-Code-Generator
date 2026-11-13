@@ -3,8 +3,11 @@
  * change how the text is displayed or interpreted.
  */
 
-/** Bidirectional embeddings, overrides and isolates (U+202A..202E, U+2066..2069). */
-const BIDI_RE = /[‪-‮⁦-⁩]/g;
+/**
+ * Bidirectional embeddings, overrides and isolates (U+202A..202E, U+2066..2069).
+ * Built from escapes so the source itself contains no invisible bidi characters.
+ */
+const BIDI_RE = new RegExp('[\\u202a-\\u202e\\u2066-\\u2069]', 'g');
 /** C0 and C1 control characters except tab, line feed and carriage return. */
 const CONTROL_RE = /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f-\u009f]/g;
 

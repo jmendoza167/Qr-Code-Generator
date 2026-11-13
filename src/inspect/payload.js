@@ -12,16 +12,34 @@ const MAX_EMBEDDED_URLS = 20;
 const SCHEME_RE = /^([a-z][a-z0-9+.-]*):/i;
 /** A bare domain with optional path: example.com, www.example.com/page, example.com:8080/x?y */
 const BARE_DOMAIN_RE = /^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}(?::\d{1,5})?(?:[/?#][^\s]*)?$/i;
-/** URLs inside free text: http(s):// or www. up to whitespace or a quote/bracket. */
+/**
+ * URLs inside free text: http(s):// or www. up to whitespace or a quote/bracket.
+ * Linear: a fixed prefix followed by one greedy character class.
+ */
 const EMBEDDED_URL_RE = /(?:https?:\/\/|www\.)[^\s<>"'()[\]]+/gi;
 
-/** URLs mentioned in a piece of free text, trailing punctuation removed, capped. */
-export function extractUrls(text, where) {
+/** Sentence punctuation that ends up glued to a URL in prose ("see https://x.example."). */
+const TRAILING_PUNCTUATION = '.,;:!?';
+
+/**
+ * Strip trailing sentence punctuation. A backwards loop instead of
+ * /[.,;:!?]+$/: that regex is retried from every position of a punctuation
+ * run that is not at the end, so "!" x n followed by a letter costs O(n^2).
+ * The text comes from a decoded QR code and is attacker-controlled.
+ */
+export function trimTrailingPunctuation(text) {
+  let end = text.length;
+  while (end > 0 && TRAILING_PUNCTUATION.includes(text[end - 1])) end--;
+  return end === text.length ? text : text.slice(0, end);
+}
+
+/** URLs mentioned in a piece of free text, trailing punctuation removed, at most `limit`. */
+export function extractUrls(text, where, limit = MAX_EMBEDDED_URLS) {
   const found = [];
+  if (limit <= 0) return found;
   for (const match of text.matchAll(EMBEDDED_URL_RE)) {
-    if (found.length >= MAX_EMBEDDED_URLS) break;
-    const url = match[0].replace(/[.,;:!?]+$/, '');
-    found.push({ url, where });
+    found.push({ url: trimTrailingPunctuation(match[0]), where });
+    if (found.length >= limit) break;
   }
   return found;
 }
@@ -113,11 +131,14 @@ export function classifyPayload(text) {
   if (/^BEGIN:VCARD/i.test(trimmed)) {
     const vcard = parseVCard(trimmed);
     const embeddedUrls = [];
+    // Stop scanning once the cap is reached: a card with thousands of lines
+    // full of links should not be fully extracted only to be cut down.
     for (const { name, value } of vcard) {
+      if (embeddedUrls.length >= MAX_EMBEDDED_URLS) break;
       if (name === 'URL' && !/^(?:https?:\/\/|www\.)/i.test(value) && /^[a-z0-9.-]+\.[a-z]{2,}/i.test(value)) {
         embeddedUrls.push({ url: value, where: 'vCard URL' });
       }
-      embeddedUrls.push(...extractUrls(value, `vCard ${name}`));
+      embeddedUrls.push(...extractUrls(value, `vCard ${name}`, MAX_EMBEDDED_URLS - embeddedUrls.length));
     }
     return { ...base, type: 'vcard', scheme: null, vcard, embeddedUrls: embeddedUrls.slice(0, MAX_EMBEDDED_URLS) };
   }
