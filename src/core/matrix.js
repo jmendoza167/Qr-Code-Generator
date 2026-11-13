@@ -105,7 +105,7 @@ function drawAlignmentPatterns(matrix) {
  *
  * @returns {[[number, number], [number, number]][]} [row, col] pairs per bit
  */
-function formatInfoPositions(size) {
+export function formatInfoPositions(size) {
   const positions = [];
   for (let i = 0; i < 15; i++) {
     let first;
@@ -144,21 +144,34 @@ export function drawFormatInfo(matrix, ecc, mask) {
  * Versions 7+ carry their 18 version bits in two 6x3 blocks: one above the
  * bottom-left finder, one left of the top-right finder (transposed). Bit i
  * sits at row floor(i / 3), column size - 11 + (i % 3) of the top-right block.
+ *
+ * @returns {[[number, number], [number, number]][]} [row, col] pairs per bit: top-right copy, bottom-left copy
  */
-function drawVersionInfo(matrix) {
-  const { size } = matrix;
-  const bits = versionBits(matrix.version);
+export function versionInfoPositions(size) {
+  const positions = [];
   for (let i = 0; i < 18; i++) {
-    const dark = ((bits >>> i) & 1) === 1;
     const a = Math.floor(i / 3);
     const b = size - 11 + (i % 3);
-    setFunctionModule(matrix, a, b, dark); // top-right block
-    setFunctionModule(matrix, b, a, dark); // bottom-left block
+    positions.push([
+      [a, b],
+      [b, a],
+    ]);
   }
+  return positions;
+}
+
+function drawVersionInfo(matrix) {
+  const bits = versionBits(matrix.version);
+  versionInfoPositions(matrix.size).forEach(([topRight, bottomLeft], i) => {
+    const dark = ((bits >>> i) & 1) === 1;
+    setFunctionModule(matrix, topRight[0], topRight[1], dark);
+    setFunctionModule(matrix, bottomLeft[0], bottomLeft[1], dark);
+  });
 }
 
 /**
- * Place the codeword bits in the zigzag order of section 7.7.3.
+ * The zigzag order of section 7.7.3, shared by the encoder (placing bits)
+ * and the decoder (reading them back).
  *
  * Walk column pairs from the right edge to the left. The first pair is
  * filled bottom-to-top, the next top-to-bottom, and so on. Within each
@@ -166,31 +179,41 @@ function drawVersionInfo(matrix) {
  * modules are skipped, and so is column 6 entirely (the vertical timing
  * pattern), which is why `right` jumps from 6 to 5.
  *
- * Any free modules left after the last codeword bit are the "remainder
- * bits"; they stay light (zero).
+ * Yields [row, col] for every non-function module, exactly once: first
+ * the codeword bits, then whatever is left over (the "remainder bits").
+ *
+ * @param {{ size: number, isFunction: boolean[][] }} matrix
+ */
+export function* dataModulePositions({ size, isFunction }) {
+  for (let right = size - 1; right >= 1; right -= 2) {
+    if (right === 6) right = 5;
+    const upward = ((right + 1) & 2) === 0;
+    for (let step = 0; step < size; step++) {
+      const row = upward ? size - 1 - step : step;
+      if (!isFunction[row][right]) yield [row, right];
+      if (!isFunction[row][right - 1]) yield [row, right - 1];
+    }
+  }
+}
+
+/**
+ * Place the codeword bits in zigzag order. Any free modules left after the
+ * last codeword bit are the remainder bits; they stay light (zero).
  */
 export function placeData(matrix, codewords) {
-  const { size, modules, isFunction, version } = matrix;
+  const { modules, version } = matrix;
   const total = getTotalCodewords(version);
   if (codewords.length !== total) {
     throw new RangeError(`version ${version} needs ${total} codewords, got ${codewords.length}`);
   }
   const totalBits = total * 8;
   let bitIndex = 0;
-  for (let right = size - 1; right >= 1; right -= 2) {
-    if (right === 6) right = 5;
-    const upward = ((right + 1) & 2) === 0;
-    for (let step = 0; step < size; step++) {
-      const row = upward ? size - 1 - step : step;
-      for (const col of [right, right - 1]) {
-        if (isFunction[row][col]) continue;
-        if (bitIndex < totalBits) {
-          const byte = codewords[bitIndex >> 3];
-          modules[row][col] = ((byte >>> (7 - (bitIndex & 7))) & 1) === 1;
-        }
-        bitIndex++;
-      }
+  for (const [row, col] of dataModulePositions(matrix)) {
+    if (bitIndex < totalBits) {
+      const byte = codewords[bitIndex >> 3];
+      modules[row][col] = ((byte >>> (7 - (bitIndex & 7))) & 1) === 1;
     }
+    bitIndex++;
   }
   // Every free module was visited exactly once: codeword bits + remainder bits.
   if (bitIndex !== totalBits + getRemainderBits(version)) {
