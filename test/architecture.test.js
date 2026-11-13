@@ -32,6 +32,7 @@ const BROWSER_SAFE = [
   join(ROOT, 'src', 'render', 'logo.js'),
   join(ROOT, 'src', 'render', 'base64.js'),
   join(ROOT, 'src', 'render', 'svg-sanitize.js'),
+  join(ROOT, 'src', 'render', 'image-limits.js'),
 ];
 
 // Anything that only exists in Node: node: imports, CommonJS require, the

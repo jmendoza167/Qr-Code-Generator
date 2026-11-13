@@ -15,6 +15,7 @@
  */
 import { inflateSync } from 'node:zlib';
 import { crc32 } from './png.js';
+import { MAX_IMAGE_DIMENSION, MAX_IMAGE_PIXELS } from './image-limits.js';
 
 export class PngDecodeError extends Error {
   constructor(message) {
@@ -23,9 +24,9 @@ export class PngDecodeError extends Error {
   }
 }
 
-/** Largest logo accepted: 4096 x 4096, 16 megapixels in total. */
-export const MAX_PNG_DIMENSION = 4096;
-export const MAX_PNG_PIXELS = MAX_PNG_DIMENSION * MAX_PNG_DIMENSION;
+/** Largest PNG accepted: 4096 x 4096, 16 megapixels in total (shared with the QR decoder). */
+export const MAX_PNG_DIMENSION = MAX_IMAGE_DIMENSION;
+export const MAX_PNG_PIXELS = MAX_IMAGE_PIXELS;
 
 const SIGNATURE = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
 const CHANNELS = { 0: 1, 2: 3, 3: 1, 4: 2, 6: 4 };

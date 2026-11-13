@@ -15,3 +15,13 @@ export { normalizeStyle, checkContrast } from './render/style.js';
 export { planLogo, encodeWithLogo } from './render/logo.js';
 export { sanitizeSvg } from './render/svg-sanitize.js';
 export { decodePng, PngDecodeError } from './render/png-decode.js';
+export {
+  decodeQr,
+  readMatrix,
+  QrDecodeError,
+  NoQrFoundError,
+  FormatUnreadableError,
+  TooManyErrorsError,
+  UnsupportedContentError,
+} from './decode/index.js';
+export { decodeQrPng } from './decode/from-png.js';
